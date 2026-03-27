@@ -1,0 +1,62 @@
+name: Build Nekoray 2026 Custom (Latest Core)
+
+on:
+  workflow_dispatch: # 方便你在网页上手动点击运行
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.5.*' # 使用稳定的 Qt6 环境
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Download Latest Sing-box Core
+        shell: pwsh
+        run: |
+          # 自动获取 2026 年 sing-box 的最新 Release 版本号
+          $latest_release = (curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | ConvertFrom-Json).tag_name
+          echo "Latest Sing-box Version: $latest_release"
+          # 下载 Windows 64位 压缩包
+          $url = "https://github.com/SagerNet/sing-box/releases/download/$latest_release/sing-box-$($latest_release.Substring(1))-windows-amd64.zip"
+          curl -L $url -o sing-box.zip
+          Expand-Archive -Path sing-box.zip -DestinationPath ./latest_core
+          # 提取 exe 到编译预备目录
+          Move-Item ./latest_core/*/sing-box.exe ./sing-box.exe
+
+      - name: Build Nekoray
+        shell: pwsh
+        run: |
+          mkdir build
+          cd build
+          cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release
+          ninja
+
+      - name: Package with 2026 Core
+        shell: pwsh
+        run: |
+          mkdir dist
+          # 复制编译好的 Nekoray 程序
+          Copy-Item ./build/nekoray.exe ./dist/
+          # 【关键一步】把我们刚才下载的最新的 sing-box.exe 塞进压缩包
+          Copy-Item ./sing-box.exe ./dist/
+          # 复制必要的 Qt 依赖库
+          windeployqt --release ./dist/nekoray.exe
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nekoray-2026-Custom-Win64
+          path: ./dist/*
