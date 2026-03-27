@@ -1,11 +1,11 @@
-name: Build Nekoray Windows EXE (2026 Edition)
+name: Build Nekoray Windows EXE (2026 Pro)
 
 on:
-  workflow_dispatch: # 允许手动点击运行
+  workflow_dispatch: # 网页点一下，编译就开始
 
 jobs:
   build:
-    runs-on: windows-2022 # 强制使用 Windows 环境，不再用 Linux Docker
+    runs-on: windows-2022 # 强制使用 Windows 环境，不进 Linux 坑
 
     steps:
       - name: Checkout Code
@@ -13,7 +13,7 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install Qt 5.15.2
+      - name: Setup Qt 5.15.2
         uses: jurplel/install-qt-action@v3
         with:
           version: '5.15.2'
@@ -21,13 +21,13 @@ jobs:
           target: 'desktop'
           arch: 'win64_msvc2019_64'
 
-      - name: Setup MSVC & Ninja
+      - name: Setup Compiler Environment
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Download 2026 Sing-box Core
+      - name: Inject 2026 Latest Sing-box Core
         shell: pwsh
         run: |
-          # 自动抓取 2026 年最新的核心
+          # 自动获取 2026 年最新的核心，保持满血状态
           $tag = (Invoke-RestMethod -Uri "https://api.github.com/repos/SagerNet/sing-box/releases/latest").tag_name
           $ver = $tag.TrimStart('v')
           $url = "https://github.com/SagerNet/sing-box/releases/download/$tag/sing-box-$ver-windows-amd64.zip"
@@ -35,25 +35,26 @@ jobs:
           Expand-Archive -Path "core.zip" -DestinationPath "./core_temp"
           Get-ChildItem -Path "./core_temp" -Filter "sing-box.exe" -Recurse | Move-Item -Destination "./sing-box.exe"
 
-      - name: Build Nekoray
+      - name: Build Nekoray (MSVC + Ninja)
         shell: pwsh
         run: |
+          # 开始真正的 Windows 程序构建
           mkdir build
           cd build
           cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release
           ninja
 
-      - name: Package Release
+      - name: Package Windows Artifacts
         shell: pwsh
         run: |
-          mkdir out
-          Copy-Item "./build/nekoray.exe" -Destination "./out/"
-          Copy-Item "./sing-box.exe" -Destination "./out/"
-          # 自动补全 Windows 下的 DLL 运行库
-          windeployqt --release ./out/nekoray.exe
+          mkdir release_dist
+          Copy-Item "./build/nekoray.exe" -Destination "./release_dist/"
+          Copy-Item "./sing-box.exe" -Destination "./release_dist/"
+          # 这一步非常关键：自动提取 Windows 运行所需的所有 .dll 文件
+          windeployqt --release ./release_dist/nekoray.exe
 
-      - name: Upload Artifact
+      - name: Upload Your Custom Client
         uses: actions/upload-artifact@v4
         with:
-          name: Nekoray-Windows-2026
-          path: ./out/
+          name: Nekoray-2026-Windows-Build
+          path: ./release_dist/
