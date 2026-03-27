@@ -1,63 +1,71 @@
 name: Build Nekoray 2026 Custom (Latest Core)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 手动触发
 
 jobs:
   build-windows:
     runs-on: windows-2022
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install Qt 5.15
+      - name: Install Qt 5.15.2
         uses: jurplel/install-qt-action@v3
         with:
-          # Nekoray 必须使用 Qt5 才能编译成功
           version: '5.15.2'
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2019_64'
+          # 加上这个镜像，防止官方源下载过慢导致超时
+          mirror: 'https://mirrors.ustc.edu.cn/qtproject/'
 
-      - name: Setup MSVC
+      - name: Setup MSVC & Ninja
         uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Ninja
+        run: choco install ninja
 
       - name: Download Latest Sing-box Core (2026)
         shell: pwsh
         run: |
-          # 自动获取最新的 sing-box 核心
-          $release = (curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | ConvertFrom-Json)
+          # 动态获取 sing-box 2026 年的最新的 Release
+          $api_url = "https://api.github.com/repos/SagerNet/sing-box/releases/latest"
+          $release = (Invoke-RestMethod -Uri $api_url)
           $tag = $release.tag_name
-          $ver = $tag.Substring(1)
-          echo "Target Core Version: $tag"
-          $url = "https://github.com/SagerNet/sing-box/releases/download/$tag/sing-box-$ver-windows-amd64.zip"
-          curl -L $url -o sing-box.zip
-          Expand-Archive -Path sing-box.zip -DestinationPath ./latest_core
-          Move-Item ./latest_core/*/sing-box.exe ./sing-box.exe
+          $ver = $tag.TrimStart('v')
+          echo "Target Sing-box Version: $tag"
+          
+          $download_url = "https://github.com/SagerNet/sing-box/releases/download/$tag/sing-box-$ver-windows-amd64.zip"
+          Invoke-WebRequest -Uri $download_url -OutFile "sing-box.zip"
+          Expand-Archive -Path "sing-box.zip" -DestinationPath "./core_temp"
+          # 寻找解压出来的 exe 放到当前目录
+          Get-ChildItem -Path "./core_temp" -Filter "sing-box.exe" -Recurse | Move-Item -Destination "./sing-box.exe"
 
-      - name: Build Nekoray
+      - name: Build Nekoray App
         shell: pwsh
         run: |
           mkdir build
           cd build
-          # 指定使用 Qt5 的路径进行编译
+          # 关键：显式指定 Qt5 的 CMake 路径
           cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release
           ninja
 
-      - name: Package with 2026 Core
+      - name: Bundle & Package
         shell: pwsh
         run: |
           mkdir dist
-          Copy-Item ./build/nekoray.exe ./dist/
-          # 把我们刚下好的 2026 最新核心塞进去
-          Copy-Item ./sing-box.exe ./dist/
-          # 自动打包所有 Qt 依赖
+          # 复制主程序
+          Copy-Item "./build/nekoray.exe" -Destination "./dist/"
+          # 复制我们刚才下的 2026 强力心脏
+          Copy-Item "./sing-box.exe" -Destination "./dist/"
+          # 自动补全 Windows 运行所需的各种 Qt DLL 库
           windeployqt --release ./dist/nekoray.exe
 
-      - name: Upload Artifact
+      - name: Upload Finished Build
         uses: actions/upload-artifact@v4
         with:
-          name: Nekoray-2026-Custom-Win64
-          path: ./dist/*
+          name: Nekoray-2026-Windows-Pack
+          path: ./dist/
