@@ -1,11 +1,11 @@
 name: Build Nekoray Windows EXE (2026 Pro)
 
 on:
-  workflow_dispatch: # 网页点一下，编译就开始
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: windows-2022 # 强制使用 Windows 环境，不进 Linux 坑
+    runs-on: windows-2022
 
     steps:
       - name: Checkout Code
@@ -24,10 +24,21 @@ jobs:
       - name: Setup Compiler Environment
         uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Install Ninja
+        run: choco install ninja
+
+      - name: Build Dependencies (Protobuf etc.)
+        shell: pwsh
+        run: |
+          # 这一步就是先去“烧砖”，把 Nekoray 需要的基础库编译好
+          echo ">>> 正在编译第三方依赖库..."
+          cd libs/deps
+          cmake -GNinja -DCMAKE_BUILD_TYPE=Release .
+          ninja
+
       - name: Inject 2026 Latest Sing-box Core
         shell: pwsh
         run: |
-          # 自动获取 2026 年最新的核心，保持满血状态
           $tag = (Invoke-RestMethod -Uri "https://api.github.com/repos/SagerNet/sing-box/releases/latest").tag_name
           $ver = $tag.TrimStart('v')
           $url = "https://github.com/SagerNet/sing-box/releases/download/$tag/sing-box-$ver-windows-amd64.zip"
@@ -35,10 +46,10 @@ jobs:
           Expand-Archive -Path "core.zip" -DestinationPath "./core_temp"
           Get-ChildItem -Path "./core_temp" -Filter "sing-box.exe" -Recurse | Move-Item -Destination "./sing-box.exe"
 
-      - name: Build Nekoray (MSVC + Ninja)
+      - name: Build Nekoray App
         shell: pwsh
         run: |
-          # 开始真正的 Windows 程序构建
+          # 砖烧好了，现在开始盖房子（编译主程序）
           mkdir build
           cd build
           cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release
@@ -50,7 +61,6 @@ jobs:
           mkdir release_dist
           Copy-Item "./build/nekoray.exe" -Destination "./release_dist/"
           Copy-Item "./sing-box.exe" -Destination "./release_dist/"
-          # 这一步非常关键：自动提取 Windows 运行所需的所有 .dll 文件
           windeployqt --release ./release_dist/nekoray.exe
 
       - name: Upload Your Custom Client
