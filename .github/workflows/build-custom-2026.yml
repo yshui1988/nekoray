@@ -27,18 +27,30 @@ jobs:
       - name: Install Ninja
         run: choco install ninja
 
-      - name: Build Dependencies (Protobuf etc.)
-        shell: pwsh
+      - name: Build C++ Dependencies
+        shell: bash
         run: |
-          # 这一步就是先去“烧砖”，把 Nekoray 需要的基础库编译好
-          echo ">>> 正在编译第三方依赖库..."
-          cd libs/deps
-          cmake -GNinja -DCMAKE_BUILD_TYPE=Release .
-          ninja
+          # 运行作者写好的脚本，动态生成 libs/deps 并编译 Protobuf 等依赖
+          echo ">>> 正在执行官方 C++ 依赖编译脚本 (这可能需要几分钟)..."
+          bash ./libs/build_deps_all.sh
 
-      - name: Inject 2026 Latest Sing-box Core
+      - name: Setup Go Environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '>=1.20'
+
+      - name: Build Go Components
+        shell: bash
+        run: |
+          # 编译 Nekoray 必须的 Go 语言底层组件
+          echo ">>> 正在拉取并编译 Go 组件..."
+          if [ -f "./libs/get_source.sh" ]; then bash ./libs/get_source.sh; fi
+          if [ -f "./libs/build_go.sh" ]; then GOOS=windows GOARCH=amd64 bash ./libs/build_go.sh; fi
+
+      - name: Inject Latest Sing-box Core (2026)
         shell: pwsh
         run: |
+          # 自动去抓最新的 2026 核心
           $tag = (Invoke-RestMethod -Uri "https://api.github.com/repos/SagerNet/sing-box/releases/latest").tag_name
           $ver = $tag.TrimStart('v')
           $url = "https://github.com/SagerNet/sing-box/releases/download/$tag/sing-box-$ver-windows-amd64.zip"
@@ -49,7 +61,7 @@ jobs:
       - name: Build Nekoray App
         shell: pwsh
         run: |
-          # 砖烧好了，现在开始盖房子（编译主程序）
+          # 依赖库全都准备好了，开始盖主程序！
           mkdir build
           cd build
           cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release
