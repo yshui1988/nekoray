@@ -77,16 +77,18 @@ jobs:
           cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release
           ninja
 
-      - name: Package Final Release
+    - name: Package Final Release
         shell: pwsh
         run: |
           mkdir release_dist
-          Copy-Item "./build/nekoray.exe" -Destination "./release_dist/"
+          # 注意：这里把 nekoray.exe 改成了 nekobox.exe
+          Copy-Item "./build/nekobox.exe" -Destination "./release_dist/"
           Copy-Item "./sing-box.exe" -Destination "./release_dist/"
-          windeployqt --release ./release_dist/nekoray.exe
+          # 对应的，补充运行库的命令也要指向 nekobox.exe
+          windeployqt --release ./release_dist/nekobox.exe
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Nekoray-AnyTLS-Edition
+          name: Nekobox-AnyTLS-Edition
           path: ./release_dist/
