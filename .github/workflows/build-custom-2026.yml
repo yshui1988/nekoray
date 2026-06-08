@@ -57,10 +57,11 @@ jobs:
       - name: Inject 2026 Latest Sing-box Core
         shell: pwsh
         run: |
-          $tag = (Invoke-RestMethod -Uri "[https://api.github.com/repos/SagerNet/sing-box/releases/latest](https://api.github.com/repos/SagerNet/sing-box/releases/latest)").tag_name
+          $api_url = "https://api.github.com/repos/SagerNet/sing-box/releases/latest"
+          $tag = (Invoke-RestMethod -Uri $api_url).tag_name
           $ver = $tag.TrimStart('v')
-          $url = "[https://github.com/SagerNet/sing-box/releases/download/$tag/sing-box-$ver-windows-amd64.zip](https://github.com/SagerNet/sing-box/releases/download/$tag/sing-box-$ver-windows-amd64.zip)"
-          Invoke-WebRequest -Uri $url -OutFile "core.zip"
+          $dl_url = "https://github.com/SagerNet/sing-box/releases/download/$tag/sing-box-$ver-windows-amd64.zip"
+          Invoke-WebRequest -Uri $dl_url -OutFile "core.zip"
           Expand-Archive -Path "core.zip" -DestinationPath "./core_temp"
           Get-ChildItem -Path "./core_temp" -Filter "sing-box.exe" -Recurse | Move-Item -Destination "./sing-box.exe"
 
