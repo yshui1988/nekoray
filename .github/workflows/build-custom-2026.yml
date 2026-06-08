@@ -21,7 +21,7 @@ jobs:
           target: 'desktop'
           arch: 'win64_msvc2019_64'
 
-      - name: Setup Compiler Environment
+      - name: Setup MSVC & Ninja
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Install Ninja
@@ -32,11 +32,11 @@ jobs:
         with:
           python-version: '3.12'
 
-- name: Run Python Injector (AnyTLS Surgery)
+      - name: Run Python Injector (AnyTLS Surgery)
         env:
           PYTHONIOENCODING: utf8
         run: |
-          # 在 C++ 开始编译前，运行你的 Python 手术刀脚本
+          # 强制 UTF-8 输出，防止 Windows 控制台中文报错
           python inject_anytls.py
 
       - name: Build C++ Dependencies
