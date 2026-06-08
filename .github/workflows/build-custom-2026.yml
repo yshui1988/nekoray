@@ -1,4 +1,4 @@
-name: Build Nekoray (AnyTLS Hardcore Edition)
+name: Build Stealth Client (Obfuscated Edition)
 
 on:
   workflow_dispatch:
@@ -54,7 +54,7 @@ jobs:
           if [ -f "./libs/get_source.sh" ]; then bash ./libs/get_source.sh; fi
           if [ -f "./libs/build_go.sh" ]; then GOOS=windows GOARCH=amd64 bash ./libs/build_go.sh; fi
 
-      - name: Inject 2026 Latest Sing-box Core
+      - name: Inject Latest Sing-box Core
         shell: pwsh
         run: |
           $api_url = "https://api.github.com/repos/SagerNet/sing-box/releases/latest"
@@ -65,7 +65,7 @@ jobs:
           Expand-Archive -Path "core.zip" -DestinationPath "./core_temp"
           Get-ChildItem -Path "./core_temp" -Filter "sing-box.exe" -Recurse | Move-Item -Destination "./sing-box.exe"
 
-      - name: Build Nekoray Main Application
+      - name: Build Main Application
         shell: pwsh
         run: |
           mkdir build
@@ -73,16 +73,47 @@ jobs:
           cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release
           ninja
 
-      - name: Package Final Release
+      - name: Generate Dynamic Versioning
+        shell: pwsh
+        run: |
+          $timestamp = Get-Date -Format "yyyyMMddHHmm"
+          echo "BUILD_VERSION=V$timestamp" >> $env:GITHUB_ENV
+
+      - name: Package, Obfuscate and Water-mark
         shell: pwsh
         run: |
           mkdir release_dist
-          Copy-Item "./build/nekobox.exe" -Destination "./release_dist/"
-          Copy-Item "./sing-box.exe" -Destination "./release_dist/"
-          windeployqt --release ./release_dist/nekobox.exe
+          
+          # 1. 生成 8 位随机字母数字组合
+          $randName = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 8 | % {[char]$_})
+          echo "RANDOM_EXE_NAME=$randName" >> $env:GITHUB_ENV
+          $targetExe = "./release_dist/$randName.exe"
+          
+          # 2. 拷贝核心与主程序并随机重命名
+          Copy-Item "./build/nekobox.exe" -Destination $targetExe
+          Copy-Item "./sing-box.exe" -Destination "./release_dist/sing-box.exe"
+          
+          # 3. 补全 Qt 依赖 (必须在加壳前进行，否则工具无法读取依赖表)
+          windeployqt --release $targetExe
+          
+          # 4. UPX 极限加壳：压缩体积并打乱 C++ 编译特征
+          choco install upx --no-progress
+          upx --best $targetExe
+          
+          # 5. 尾部掺水：随机注入 10KB 到 150KB 的垃圾数据，保证每次编译 Hash 绝对孤立
+          $paddingSize = Get-Random -Minimum 10240 -Maximum 153600
+          $padding = New-Object byte[] $paddingSize
+          (New-Object Random).NextBytes($padding)
+          [System.IO.File]::WriteAllBytes("water.bin", $padding)
+          
+          # 采用二进制流合并追加数据
+          cmd.exe /c "copy /b $([System.IO.Path]::GetFullPath($targetExe)) + water.bin target_watered.exe"
+          Move-Item -Path "target_watered.exe" -Destination $targetExe -Force
+          
+          echo ">>> 混淆完成！主程序名: $randName.exe，已成功注入 $paddingSize 字节干扰数据。"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Nekobox-AnyTLS-Edition
+          name: Stealth-Client-${{ env.BUILD_VERSION }}
           path: ./release_dist/
