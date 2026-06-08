@@ -36,13 +36,11 @@ jobs:
         env:
           PYTHONIOENCODING: utf8
         run: |
-          # 强制 UTF-8 输出，防止 Windows 控制台中文报错
           python inject_anytls.py
 
       - name: Build C++ Dependencies
         shell: bash
         run: |
-          echo ">>> 正在执行官方 C++ 依赖编译脚本..."
           bash ./libs/build_deps_all.sh
 
       - name: Setup Go Environment
@@ -53,17 +51,15 @@ jobs:
       - name: Build Go Components
         shell: bash
         run: |
-          echo ">>> 正在编译 Go 组件..."
           if [ -f "./libs/get_source.sh" ]; then bash ./libs/get_source.sh; fi
           if [ -f "./libs/build_go.sh" ]; then GOOS=windows GOARCH=amd64 bash ./libs/build_go.sh; fi
 
       - name: Inject 2026 Latest Sing-box Core
         shell: pwsh
         run: |
-          echo ">>> 获取 2026 最新核心..."
-          $tag = (Invoke-RestMethod -Uri "https://api.github.com/repos/SagerNet/sing-box/releases/latest").tag_name
+          $tag = (Invoke-RestMethod -Uri "[https://api.github.com/repos/SagerNet/sing-box/releases/latest](https://api.github.com/repos/SagerNet/sing-box/releases/latest)").tag_name
           $ver = $tag.TrimStart('v')
-          $url = "https://github.com/SagerNet/sing-box/releases/download/$tag/sing-box-$ver-windows-amd64.zip"
+          $url = "[https://github.com/SagerNet/sing-box/releases/download/$tag/sing-box-$ver-windows-amd64.zip](https://github.com/SagerNet/sing-box/releases/download/$tag/sing-box-$ver-windows-amd64.zip)"
           Invoke-WebRequest -Uri $url -OutFile "core.zip"
           Expand-Archive -Path "core.zip" -DestinationPath "./core_temp"
           Get-ChildItem -Path "./core_temp" -Filter "sing-box.exe" -Recurse | Move-Item -Destination "./sing-box.exe"
@@ -71,20 +67,17 @@ jobs:
       - name: Build Nekoray Main Application
         shell: pwsh
         run: |
-          echo ">>> 源码修改完毕，开始整体编译！"
           mkdir build
           cd build
           cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release
           ninja
 
-    - name: Package Final Release
+      - name: Package Final Release
         shell: pwsh
         run: |
           mkdir release_dist
-          # 注意：这里把 nekoray.exe 改成了 nekobox.exe
           Copy-Item "./build/nekobox.exe" -Destination "./release_dist/"
           Copy-Item "./sing-box.exe" -Destination "./release_dist/"
-          # 对应的，补充运行库的命令也要指向 nekobox.exe
           windeployqt --release ./release_dist/nekobox.exe
 
       - name: Upload Artifact
