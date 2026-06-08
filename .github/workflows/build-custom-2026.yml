@@ -32,10 +32,11 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Run Python Injector (AnyTLS Surgery)
+- name: Run Python Injector (AnyTLS Surgery)
+        env:
+          PYTHONIOENCODING: utf8
         run: |
           # 在 C++ 开始编译前，运行你的 Python 手术刀脚本
-          # 请确保你的仓库根目录下已经创建了 inject_anytls.py 这个文件！
           python inject_anytls.py
 
       - name: Build C++ Dependencies
